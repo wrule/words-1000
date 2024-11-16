@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
@@ -15,6 +15,7 @@ interface Phrase {
 
 export default function PhrasePage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [newPhrase, setNewPhrase] = useState({ text: '', translation: '' });
@@ -22,7 +23,6 @@ export default function PhrasePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
 
   useEffect(() => {
     const loadPhrases = async () => {
@@ -82,6 +82,53 @@ export default function PhrasePage() {
     setEditingId(null);
   };
 
+  const exportPhrases = () => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dataStr = JSON.stringify(phrases, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `phrases-${timestamp}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importPhrases = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedPhrases = JSON.parse(content);
+        if (Array.isArray(importedPhrases)) {
+          const validPhrases = importedPhrases.filter(phrase => 
+            phrase.text && 
+            phrase.translation && 
+            phrase.id && 
+            phrase.createdAt &&
+            typeof phrase.successCount === 'number' &&
+            typeof phrase.failureCount === 'number'
+          );
+          setPhrases(prev => [...validPhrases, ...prev]);
+          alert('Phrases imported successfully!');
+        } else {
+          alert('Invalid file format');
+        }
+      } catch (error) {
+        alert('Error importing phrases');
+        console.error(error);
+      }
+    };
+    reader.readAsText(file);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const filteredPhrases = phrases.filter(phrase => 
     phrase.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
     phrase.translation.toLowerCase().includes(searchTerm.toLowerCase())
@@ -110,7 +157,7 @@ export default function PhrasePage() {
                 </svg>
               </span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 flex items-center justify-center shadow-sm"
@@ -128,6 +175,32 @@ export default function PhrasePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
                 Train
+              </button>
+              <button
+                onClick={exportPhrases}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={importPhrases}
+                className="hidden"
+                id="import-input"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors duration-200 flex items-center justify-center shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import
               </button>
             </div>
           </div>
